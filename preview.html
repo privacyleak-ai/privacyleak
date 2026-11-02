@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PrivacyLeak 图</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; max-width: 980px; margin: 32px auto; padding: 0 20px; color: #1a1a1a; background: #fafafa; }
+    h1 { font-size: 22px; }
+    h2 { font-size: 16px; margin-top: 36px; }
+    p { color: #555; font-size: 14px; }
+    .diagram { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 16px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>PrivacyLeak</h1>
+  <p>这是随附技术材料中的架构、采样、入库与查询流程预览。它是说明性示意图；当前产品范围以 README.md 为准。GitHub 上可直接查看 README 的 Mermaid 图。</p>
+
+  <h2>系统架构</h2>
+  <pre class="mermaid diagram">
+flowchart TB
+  subgraph sources [公开来源]
+    WebPages[公开网页上的图像]
+    TgChats[Telegram 公开会话中的图像]
+  end
+  subgraph ingest [采样]
+    WebSampler[网站采样]
+    TgSampler[Telegram 采样]
+    TgSync[媒体记录同步]
+    Watch[入库监视]
+  end
+  subgraph data [数据]
+    Meta[图像记录与来源页面]
+    Files[待处理图像]
+    Vectors[人脸向量]
+    Faiss[FAISS 近邻索引]
+  end
+  subgraph face [人脸服务]
+    Model[InsightFace buffalo_l]
+  end
+  subgraph entry [查询入口]
+    Site[用户站点]
+    Bot[Telegram Bot]
+  end
+  WebPages --> WebSampler
+  TgChats --> TgSampler
+  TgSampler --> TgSync
+  WebSampler --> Meta
+  WebSampler --> Files
+  TgSync --> Meta
+  TgSampler --> Files
+  Files --> Watch
+  Watch --> Model
+  Model --> Vectors
+  Vectors --> Faiss
+  Site --> Model
+  Bot --> Model
+  Model --> Faiss
+  Faiss --> Site
+  Faiss --> Bot
+  Meta --> Site
+  Meta --> Bot
+  </pre>
+
+  <h2>网站采样</h2>
+  <pre class="mermaid diagram">
+flowchart TD
+  A[打开公开列表页] --> B{页面上有图像条目?}
+  B -->|没有| Z[这一段列表结束]
+  B -->|有| C[读取图像编号和来源页面]
+  C --> D{这个编号已经入库?}
+  D -->|是| E[跳过]
+  D -->|否| F[保存图像和来源]
+  F --> G[写入样本记录]
+  E --> H[继续下一条]
+  G --> H
+  H --> I{这一页还有下一条?}
+  I -->|有| C
+  I -->|没有| J[翻到下一页公开列表]
+  J --> A
+  </pre>
+
+  <h2>Telegram 采样</h2>
+  <pre class="mermaid diagram">
+flowchart TD
+  A[读取会话名单] --> B[连接公开会话]
+  B --> C{还有新的图像消息?}
+  C -->|没有| H[这个会话先停在这里]
+  C -->|有| D[保存图像文件]
+  D --> E[把消息记入本地 SQLite]
+  E --> C
+  E --> F[按时间增量同步到 MySQL]
+  F --> G[样本记录出现在统一媒体表]
+  D --> I[入库监视看到新图像]
+  I --> J[交给人脸服务]
+  </pre>
+
+  <h2>入库</h2>
+  <pre class="mermaid diagram">
+flowchart TD
+  A[新的样本图像] --> B[等待文件写完]
+  B --> C[InsightFace 检测人脸]
+  C --> D{检测出人脸?}
+  D -->|没有| E[不写入向量索引]
+  D -->|有| F[生成特征向量]
+  F --> G[写入 MySQL]
+  G --> H{写入已确认?}
+  H -->|否| I[保留图像下一轮再试]
+  H -->|是| J[同步到 FAISS]
+  J --> K[Telegram 样本删除原图]
+  E --> L[网站样本保留来源记录]
+  </pre>
+
+  <h2>一次查询</h2>
+  <pre class="mermaid diagram">
+sequenceDiagram
+  actor User as 用户
+  participant Entry as 用户站点或 Bot
+  participant Face as 人脸服务
+  participant Index as FAISS
+  participant DB as MySQL
+  User->>Entry: 上传一张人脸照片
+  Entry->>Face: 提交查询图
+  Face->>Face: buffalo_l 检测并生成向量
+  Face->>Index: 取近邻
+  Index-->>Face: 相近向量的编号
+  Face->>DB: 按编号读取来源页面
+  DB-->>Face: 页面地址和标题
+  Face-->>Entry: 相似样本和出处
+  Entry-->>User: 展示结果
+  </pre>
+
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+  </script>
+</body>
+</html>
+
+
