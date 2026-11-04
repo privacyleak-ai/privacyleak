@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PrivacyLeak 图</title>
+  <title>PrivacyLeak Diagrams</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; max-width: 980px; margin: 32px auto; padding: 0 20px; color: #1a1a1a; background: #fafafa; }
     h1 { font-size: 22px; }
@@ -14,32 +14,32 @@
 </head>
 <body>
   <h1>PrivacyLeak</h1>
-  <p>这是随附技术材料中的架构、采样、入库与查询流程预览。它是说明性示意图；当前产品范围以 README.md 为准。GitHub 上可直接查看 README 的 Mermaid 图。</p>
+  <p>This page previews the architecture, sampling, ingest, and query flows from the accompanying technical notes. The diagrams are illustrative; the current product scope is defined in README.md. The Mermaid diagrams in the README can be viewed directly on GitHub.</p>
 
-  <h2>系统架构</h2>
+  <h2>System architecture</h2>
   <pre class="mermaid diagram">
 flowchart TB
-  subgraph sources [公开来源]
-    WebPages[公开网页上的图像]
-    TgChats[Telegram 公开会话中的图像]
+  subgraph sources [Public sources]
+    WebPages[Images on public web pages]
+    TgChats[Images in public Telegram chats]
   end
-  subgraph ingest [采样]
-    WebSampler[网站采样]
-    TgSampler[Telegram 采样]
-    TgSync[媒体记录同步]
-    Watch[入库监视]
+  subgraph ingest [Sampling]
+    WebSampler[Website sampling]
+    TgSampler[Telegram sampling]
+    TgSync[Media record sync]
+    Watch[Ingest watch]
   end
-  subgraph data [数据]
-    Meta[图像记录与来源页面]
-    Files[待处理图像]
-    Vectors[人脸向量]
-    Faiss[FAISS 近邻索引]
+  subgraph data [Data]
+    Meta[Image records and source pages]
+    Files[Images pending processing]
+    Vectors[Face vectors]
+    Faiss[FAISS nearest-neighbor index]
   end
-  subgraph face [人脸服务]
+  subgraph face [Face service]
     Model[InsightFace buffalo_l]
   end
-  subgraph entry [查询入口]
-    Site[用户站点]
+  subgraph entry [Query entry points]
+    Site[User site]
     Bot[Telegram Bot]
   end
   WebPages --> WebSampler
@@ -62,72 +62,72 @@ flowchart TB
   Meta --> Bot
   </pre>
 
-  <h2>网站采样</h2>
+  <h2>Website sampling</h2>
   <pre class="mermaid diagram">
 flowchart TD
-  A[打开公开列表页] --> B{页面上有图像条目?}
-  B -->|没有| Z[这一段列表结束]
-  B -->|有| C[读取图像编号和来源页面]
-  C --> D{这个编号已经入库?}
-  D -->|是| E[跳过]
-  D -->|否| F[保存图像和来源]
-  F --> G[写入样本记录]
-  E --> H[继续下一条]
+  A[Open a public listing page] --> B{Image entries on the page?}
+  B -->|No| Z[This listing section ends]
+  B -->|Yes| C[Read the image id and source page]
+  C --> D{Already ingested?}
+  D -->|Yes| E[Skip]
+  D -->|No| F[Save the image and its source]
+  F --> G[Write the sample record]
+  E --> H[Continue to the next item]
   G --> H
-  H --> I{这一页还有下一条?}
-  I -->|有| C
-  I -->|没有| J[翻到下一页公开列表]
+  H --> I{More items on this page?}
+  I -->|Yes| C
+  I -->|No| J[Go to the next public listing page]
   J --> A
   </pre>
 
-  <h2>Telegram 采样</h2>
+  <h2>Telegram sampling</h2>
   <pre class="mermaid diagram">
 flowchart TD
-  A[读取会话名单] --> B[连接公开会话]
-  B --> C{还有新的图像消息?}
-  C -->|没有| H[这个会话先停在这里]
-  C -->|有| D[保存图像文件]
-  D --> E[把消息记入本地 SQLite]
+  A[Read the chat list] --> B[Connect to a public chat]
+  B --> C{More new image messages?}
+  C -->|No| H[Stop this chat here for now]
+  C -->|Yes| D[Save the image file]
+  D --> E[Record the message in local SQLite]
   E --> C
-  E --> F[按时间增量同步到 MySQL]
-  F --> G[样本记录出现在统一媒体表]
-  D --> I[入库监视看到新图像]
-  I --> J[交给人脸服务]
+  E --> F[Sync new records to MySQL by time]
+  F --> G[Sample record appears in the shared media table]
+  D --> I[Ingest watch sees a new image]
+  I --> J[Hand it to the face service]
   </pre>
 
-  <h2>入库</h2>
+  <h2>Ingest</h2>
   <pre class="mermaid diagram">
 flowchart TD
-  A[新的样本图像] --> B[等待文件写完]
-  B --> C[InsightFace 检测人脸]
-  C --> D{检测出人脸?}
-  D -->|没有| E[不写入向量索引]
-  D -->|有| F[生成特征向量]
-  F --> G[写入 MySQL]
-  G --> H{写入已确认?}
-  H -->|否| I[保留图像下一轮再试]
-  H -->|是| J[同步到 FAISS]
-  J --> K[Telegram 样本删除原图]
-  E --> L[网站样本保留来源记录]
+  A[New sample image] --> B[Wait until the file is fully written]
+  B --> C[InsightFace detects faces]
+  C --> D{Face detected?}
+  D -->|No| E[Do not write to the vector index]
+  D -->|Yes| F[Generate the feature vector]
+  F --> G[Write to MySQL]
+  G --> H{Write confirmed?}
+  H -->|No| I[Keep the image and retry next round]
+  H -->|Yes| J[Sync to FAISS]
+  J --> K[Delete the original for Telegram samples]
+  E --> L[Keep the source record for website samples]
   </pre>
 
-  <h2>一次查询</h2>
+  <h2>A query</h2>
   <pre class="mermaid diagram">
 sequenceDiagram
-  actor User as 用户
-  participant Entry as 用户站点或 Bot
-  participant Face as 人脸服务
+  actor User as User
+  participant Entry as User site or Bot
+  participant Face as Face service
   participant Index as FAISS
   participant DB as MySQL
-  User->>Entry: 上传一张人脸照片
-  Entry->>Face: 提交查询图
-  Face->>Face: buffalo_l 检测并生成向量
-  Face->>Index: 取近邻
-  Index-->>Face: 相近向量的编号
-  Face->>DB: 按编号读取来源页面
-  DB-->>Face: 页面地址和标题
-  Face-->>Entry: 相似样本和出处
-  Entry-->>User: 展示结果
+  User->>Entry: Upload a face photo
+  Entry->>Face: Submit the query image
+  Face->>Face: buffalo_l detects the face and builds a vector
+  Face->>Index: Fetch nearest neighbors
+  Index-->>Face: IDs of nearby vectors
+  Face->>DB: Load source pages by ID
+  DB-->>Face: Page URL and title
+  Face-->>Entry: Similar samples and where they came from
+  Entry-->>User: Show the results
   </pre>
 
   <script type="module">
@@ -136,5 +136,3 @@ sequenceDiagram
   </script>
 </body>
 </html>
-
-
